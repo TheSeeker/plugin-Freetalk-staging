@@ -27,7 +27,7 @@ import freenet.support.codeshortification.IfNull;
  * not need to manually create them. The <code>MessageManager</code> takes care of anything related to boards, to someone who just wants to
  * write a user interface this class can be considered as read-only.
  *
- * @author xor
+ * @author xor (xor@freenetproject.org)
  */
 @IndexedClass // TODO: Check whether we need the index
 public class Board extends Persistent implements Comparable<Board> {
@@ -107,7 +107,7 @@ public class Board extends Persistent implements Comparable<Board> {
      * @param newName The name of the board. For restrictions, see <code>isNameValid()</code>
      * @throws InvalidParameterException If none or an invalid name is given.
      */
-    public Board(String newName, String description) throws InvalidParameterException {
+    public Board(String newName, String description, boolean hasSubscriptions) throws InvalidParameterException {
         if(newName==null || newName.length() == 0)
             throw new IllegalArgumentException("Empty board name.");
         if(!isNameValid(newName))
@@ -116,12 +116,12 @@ public class Board extends Persistent implements Comparable<Board> {
         mID = UUID.randomUUID().toString();
         mName = newName.toLowerCase();
         mDescription = description != null ? description : "";
-        mHasSubscriptions = false;
+        mHasSubscriptions = hasSubscriptions;
     }
 
 	@Override
 	public void databaseIntegrityTest() throws Exception {
-		checkedActivate(3);
+		checkedActivate(1); // String, int, boolean are db4o primitive types, depth 1 is enough
 		
 	    if(mID == null)
 	    	throw new NullPointerException("mID==null");
@@ -154,7 +154,7 @@ public class Board extends Persistent implements Comparable<Board> {
      * Does not provide synchronization, you have to lock the MessageManager, this Board and then the database before calling this function.
      */
     protected void storeWithoutCommit() {
-    	super.storeWithoutCommit(3); // TODO: Figure out a suitable depth.
+    	super.storeWithoutCommit(1); // String, int, boolean are db4o primitive types, depth 1 is enough
     }
 
 
@@ -221,6 +221,7 @@ public class Board extends Persistent implements Comparable<Board> {
      * 0, 1, 2 and so on. 
      */
     public final String getID() {
+		checkedActivate(1); // String is a db4o primitive type so 1 is enough
     	return mID;
     }
     
@@ -229,6 +230,8 @@ public class Board extends Persistent implements Comparable<Board> {
 	 * if the token isn't a language, because we're not using the prefixes, then return "no linguistic content" instead. --TheSeeker
      */
     public final ISO639_3.LanguageCode getLanguage() {
+    	checkedActivate(1); // String is a db4o primitive type so 1 is enough
+
 		int dotIndex = mName.indexOf('.');
 		String lang = "zxx";
 		
@@ -251,6 +254,7 @@ public class Board extends Persistent implements Comparable<Board> {
      * @return The name of this board. Only one board with a given name can exist at once. The name is case-insensitive.
      */
     public final String getName() {
+		checkedActivate(1); // String is a db4o primitive type so 1 is enough
         return mName;
     }
     
@@ -258,6 +262,7 @@ public class Board extends Persistent implements Comparable<Board> {
      * @see getName()
      */
     public final String getNameWithoutLanguagePrefix() {
+		checkedActivate(1); // String is a db4o primitive type so 1 is enough
 		if (ALLOWED_LANGUAGES.containsKey(mName.substring(0, mName.indexOf('.'))))
 			return mName.substring(mName.indexOf('.')+1);
 		else
@@ -274,10 +279,13 @@ public class Board extends Persistent implements Comparable<Board> {
      * "From the view of the given OwnIdentity" means that votes are only counted when the own identity trusts the voter.
      */
     public String getDescription(OwnIdentity viewer) {
+		checkedActivate(1); // String is a db4o primitive type so 1 is enough
 		return mDescription;
     }
     
     protected boolean setDescription(String newDescription) {
+		checkedActivate(1); // String is a db4o primitive type so 1 is enough
+    	
 		boolean result = false;
 		if(mDescription == null || !mDescription.equals(newDescription))
 			result = true;
@@ -288,6 +296,7 @@ public class Board extends Persistent implements Comparable<Board> {
     }
 
     public final Date getFirstSeenDate() {
+		checkedActivate(1); // Date is a db4o primitive type so 1 is enough
         return mCreationDate;
     }
     
@@ -295,6 +304,7 @@ public class Board extends Persistent implements Comparable<Board> {
      * @return Returns true if at least one {@link SubscribedBoard} for this board exists, i.e. if we should download messages for this board.
      */
     public final boolean hasSubscriptions() {
+		checkedActivate(1); // boolean is a db4o primitive type so 1 is enough
     	return mHasSubscriptions;
     }
     
@@ -306,6 +316,7 @@ public class Board extends Persistent implements Comparable<Board> {
      * {@link SubscribedBoard} object or create the first one. 
      */
 	protected final void setHasSubscriptions(boolean hasSubscriptions) {
+		checkedActivate(1); // boolean is a db4o primitive type so 1 is enough
 		mHasSubscriptions = hasSubscriptions;
 	}
 
@@ -321,6 +332,8 @@ public class Board extends Persistent implements Comparable<Board> {
      * Does not check whether the {@link Board} object referenced by the message is equal to this {@link Board} object!
      */
     public final boolean contains(Message message) {
+		checkedActivate(1); // String is a db4o primitive type so 1 is enough
+    	
     	for(Board board : message.getBoards()) {
     		if(mName.equals(board.getName()))
     			return true;
@@ -364,7 +377,7 @@ public class Board extends Persistent implements Comparable<Board> {
 
 		@Override
 		public void databaseIntegrityTest() throws Exception {
-			checkedActivate(3);
+			checkedActivate(2); // One higher than necessary, we call getters on the member objects anyway
 			
 			if(mBoard == null)
 				throw new NullPointerException("mBoard==null");
@@ -405,20 +418,26 @@ public class Board extends Persistent implements Comparable<Board> {
 		}
 
     	public Board getBoard() {
+    		checkedActivate(1);
     		mBoard.initializeTransient(mFreetalk);
     		return mBoard;
     	}
     	
     	public Message getMessage() {
+    		checkedActivate(1);
     		mMessage.initializeTransient(mBoard.mFreetalk);
     		return mMessage;
     	}
     	
     	public int getMessageIndex() {
+    		checkedActivate(1); // int is a db4o primitive type so 1 is enough
     		return mIndex;
     	}
     	
     	public Identity getAuthor() {
+    		checkedActivate(1);
+    		if(mAuthor instanceof Persistent)
+    			((Persistent)mAuthor).initializeTransient(mFreetalk);
     		return mAuthor;
     	}
     	
@@ -428,7 +447,7 @@ public class Board extends Persistent implements Comparable<Board> {
          */
         protected void storeWithoutCommit() {
         	try {
-        		checkedActivate(3); // TODO: Figure out a suitable depth.
+        		checkedActivate(1);
         		throwIfNotStored(mBoard);
         		throwIfNotStored(mMessage);
         		throwIfNotStored(mAuthor);
@@ -440,7 +459,7 @@ public class Board extends Persistent implements Comparable<Board> {
         }
         
     	protected void deleteWithoutCommit() {
-    		deleteWithoutCommit(3); // TODO: Figure out a suitable depth.
+    		deleteWithoutCommit(2);
 		}
 
     }
@@ -465,6 +484,7 @@ public class Board extends Persistent implements Comparable<Board> {
      * 	you do not store any message with it. This ensures that deleting the head message cannot cause it's index to be associated with a new, different message.
      */
 	protected final synchronized int takeFreeMessageIndexWithoutCommit() {
+		checkedActivate(1); // int is a db4o primitive type so 1 is enough
 		int result = mNextFreeMessageIndex++;
 		storeWithoutCommit();
 		return result;
@@ -546,6 +566,7 @@ public class Board extends Persistent implements Comparable<Board> {
 
     @Override
     public String toString() {
+		checkedActivate(1); // String is a db4o primitive type so 1 is enough
     	return super.toString() + " with mName: " + mName;
     }
 }

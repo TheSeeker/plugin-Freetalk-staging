@@ -54,7 +54,7 @@ public final class WoTIdentityManager extends IdentityManager implements PrioRun
 	
 	private static final int THREAD_PERIOD = Freetalk.FAST_DEBUG_MODE ? (3 * 60 * 1000) : (5 * 60 * 1000);
 	
-	private static final int GARBAGE_COLLECT_DELAY = Freetalk.FAST_DEBUG_MODE ? (1 * 60 * 1000) : (3 * THREAD_PERIOD);
+	private static final int GARBAGE_COLLECT_DELAY = Freetalk.FAST_DEBUG_MODE ? (1 * 60 * 1000) : (6 * THREAD_PERIOD);
 	
 	/** The amount of time between each attempt to connect to the WoT plugin */
 	private static final int WOT_RECONNECT_DELAY = 5 * 1000; 
@@ -89,6 +89,16 @@ public final class WoTIdentityManager extends IdentityManager implements PrioRun
 	private boolean mShortestUniqueNicknameCacheNeedsUpdate = true;
 	
 	private WebOfTrustCache mWoTCache = new WebOfTrustCache();
+	
+	
+	/* These booleans are used for preventing the construction of log-strings if logging is disabled (for saving some cpu cycles) */
+	
+	private static transient volatile boolean logDEBUG = false;
+	private static transient volatile boolean logMINOR = false;
+	
+	static {
+		Logger.registerClass(WoTIdentityManager.class);
+	}
 	
 
 	public WoTIdentityManager(Freetalk myFreetalk, Executor myExecutor) {
@@ -171,7 +181,7 @@ public final class WoTIdentityManager extends IdentityManager implements PrioRun
 		Logger.normal(this, "Created WoTOwnidentity via FCP, now storing... " + identity);
 		
 		synchronized(mFreetalk.getTaskManager()) { // Required by onNewOwnidentityAdded
-		synchronized(db.lock()) {
+		synchronized(Persistent.transactionLock(db)) {
 			try {
 				identity.initializeTransient(mFreetalk);
 				identity.storeWithoutCommit();
@@ -216,7 +226,7 @@ public final class WoTIdentityManager extends IdentityManager implements PrioRun
 		Logger.normal(this, "Created WoTOwnidentity via FCP, now storing... " + identity);
 		
 		synchronized(mFreetalk.getTaskManager()) {
-		synchronized(db.lock()) {
+		synchronized(Persistent.transactionLock(db)) {
 			try {
 				identity.storeWithoutCommit();
 				onNewOwnIdentityAdded(identity);
@@ -711,7 +721,7 @@ public final class WoTIdentityManager extends IdentityManager implements PrioRun
 	
 	private void importIdentity(boolean ownIdentity, String identityID, String requestURI, String insertURI, String nickname) {
 		synchronized(mFreetalk.getTaskManager()) {
-		synchronized(db.lock()) {
+		synchronized(Persistent.transactionLock(db)) {
 			try {
 				Logger.normal(this, "Importing identity from WoT: " + requestURI);
 				final WoTIdentity id = ownIdentity ? new WoTOwnIdentity(identityID, new FreenetURI(requestURI), new FreenetURI(insertURI), nickname) :
@@ -777,7 +787,7 @@ public final class WoTIdentityManager extends IdentityManager implements PrioRun
 						Logger.error(this, "Importing a new identity failed.", e);
 					}
 				} else {
-					Logger.debug(this, "Not importing already existing identity " + requestURI);
+					if(logDEBUG) Logger.debug(this, "Not importing already existing identity " + requestURI);
 					++ignoredCount;
 					
 					assert(result.size() == 1);
@@ -791,7 +801,7 @@ public final class WoTIdentityManager extends IdentityManager implements PrioRun
 							Logger.normal(this, "Identity type changed, replacing it: " + id);
 							// We MUST NOT take the following locks because deleteIdentity does other locks (MessageManager/TaskManager) which must happen before...
 							// synchronized(id)
-							// synchronized(db.lock()) 
+							// synchronized(Persistent.transactionLock(db)) 
 							deleteIdentity(id, mFreetalk.getMessageManager(), mFreetalk.getTaskManager());
 							importIdentity(bOwnIdentities, identityID, requestURI, insertURI, nickname);
 						}
@@ -801,7 +811,7 @@ public final class WoTIdentityManager extends IdentityManager implements PrioRun
 						
 					} else { // Normal case: Update the last received time of the idefnt
 						synchronized(id) {
-						synchronized(db.lock()) {
+						synchronized(Persistent.transactionLock(db)) {
 							try {
 								// TODO: The thread sometimes takes hours to parse the identities and I don't know why.
 								// So right now its better to re-query the time for each identity.
@@ -844,7 +854,7 @@ public final class WoTIdentityManager extends IdentityManager implements PrioRun
 		
 		for(WoTIdentity identity : result) {
 			identity.initializeTransient(mFreetalk);
-			Logger.debug(this, "Garbage collecting identity " + identity);
+			if(logDEBUG) Logger.debug(this, "Garbage collecting identity " + identity);
 			deleteIdentity(identity, messageManager, taskManager);
 		}
 		
@@ -862,7 +872,7 @@ public final class WoTIdentityManager extends IdentityManager implements PrioRun
  			beforeOwnIdentityDeletion((WoTOwnIdentity)identity);
 		
 		synchronized(identity) {
-		synchronized(db.lock()) {
+		synchronized(Persistent.transactionLock(db)) {
 			try {
 				identity.deleteWithoutCommit();
 				
@@ -903,7 +913,7 @@ public final class WoTIdentityManager extends IdentityManager implements PrioRun
 	}
 
 	public void run() { 
-		Logger.debug(this, "Main loop running...");
+		if(logDEBUG) Logger.debug(this, "Main loop running...");
 		 
 		try {
 			mConnectedToWoT = connectToWoT();
@@ -919,11 +929,11 @@ public final class WoTIdentityManager extends IdentityManager implements PrioRun
 			}
 		} finally {
 			final long sleepTime =  mConnectedToWoT ? (THREAD_PERIOD/2 + mRandom.nextInt(THREAD_PERIOD)) : WOT_RECONNECT_DELAY;
-			Logger.debug(this, "Sleeping for " + (sleepTime / (60*1000)) + " minutes.");
+			if(logDEBUG) Logger.debug(this, "Sleeping for " + (sleepTime / (60*1000)) + " minutes.");
 			mTicker.queueTimedJob(this, "Freetalk " + this.getClass().getSimpleName(), sleepTime, false, true);
 		}
 		
-		Logger.debug(this, "Main loop finished.");
+		if(logDEBUG) Logger.debug(this, "Main loop finished.");
 	}
 	
 	public int getPriority() {
@@ -931,7 +941,7 @@ public final class WoTIdentityManager extends IdentityManager implements PrioRun
 	}
 	
 	public void start() {
-		Logger.debug(this, "Starting...");
+		if(logDEBUG) Logger.debug(this, "Starting...");
 		
 		deleteDuplicateIdentities();
 		
@@ -944,7 +954,7 @@ public final class WoTIdentityManager extends IdentityManager implements PrioRun
 			Logger.error(this, "Initializing shortest unique nickname cache failed", e);
 		}
 		
-		Logger.debug(this, "Started.");
+		if(logDEBUG) Logger.debug(this, "Started.");
 	}
 	
 	/**
@@ -958,7 +968,7 @@ public final class WoTIdentityManager extends IdentityManager implements PrioRun
 		
 		synchronized(messageManager) {
 		synchronized(taskManager) {
-		synchronized(db.lock()) {
+		synchronized(Persistent.transactionLock(db)) {
 			try {
 				HashSet<String> deleted = new HashSet<String>();
 
@@ -992,21 +1002,20 @@ public final class WoTIdentityManager extends IdentityManager implements PrioRun
 	}
 	
 	public void terminate() {
-		Logger.debug(this, "Terminating ...");
+		if(logDEBUG) Logger.debug(this, "Terminating ...");
 		mTicker.shutdown();
-		Logger.debug(this, "Terminated.");
+		if(logDEBUG) Logger.debug(this, "Terminated.");
 	}
 
 	
 	// TODO: This function should be a feature of WoT.
-	@SuppressWarnings("unchecked")
 	private synchronized void updateShortestUniqueNicknameCache() {
-		Logger.debug(this, "Updating shortest unique nickname cache...");
+		if(logDEBUG) Logger.debug(this, "Updating shortest unique nickname cache...");
 		
 		// We don't use getAllIdentities() because we do not need to have intializeTransient() called on each identity, we only query strings anyway.
 		final Query q = db.query();
 		q.constrain(WoTIdentity.class);
-		ObjectSet<WoTIdentity> result = q.execute();
+		ObjectSet<WoTIdentity> result = new Persistent.InitializingObjectSet<WoTIdentity>(mFreetalk, q);
 		final WoTIdentity[] identities = result.toArray(new WoTIdentity[result.size()]);
 		
 		Arrays.sort(identities, new Comparator<WoTIdentity>() {
@@ -1050,7 +1059,7 @@ public final class WoTIdentityManager extends IdentityManager implements PrioRun
 		mShortestUniqueNicknameCache = newCache;
 		mShortestUniqueNicknameCacheNeedsUpdate = false;
 		
-		Logger.debug(this, "Finished updating shortest unique nickname cache.");
+		if(logDEBUG) Logger.debug(this, "Finished updating shortest unique nickname cache.");
 	}
 
 	@Override
