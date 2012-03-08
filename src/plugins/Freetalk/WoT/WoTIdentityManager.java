@@ -835,6 +835,7 @@ public final class WoTIdentityManager extends IdentityManager implements PrioRun
 	
 	@SuppressWarnings("unchecked")
 	private void garbageCollectIdentities() {
+		if(true) return; //F-YOU
 		final MessageManager messageManager = mFreetalk.getMessageManager();
 		final PersistentTaskManager taskManager = mFreetalk.getTaskManager();
 		
