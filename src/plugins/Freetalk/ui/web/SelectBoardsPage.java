@@ -94,7 +94,7 @@ public class SelectBoardsPage extends WebPageImpl {
 		
 		HTMLNode buttonDiv2 = buttonRow.addChild("div", "class", "button-row-button");
 		HTMLNode languageFilterForm = addFormChild(buttonDiv2, Freetalk.PLUGIN_URI + "/SelectBoards", "SelectBoardsPage");
-		languageFilterForm.addChild(NewBoardPage.getLanguageComboBox("mul"));
+		languageFilterForm.addChild(NewBoardPage.getLanguageComboBox("zxx"));
 		languageFilterForm.addChild("input", new String[] {"type", "name", "value"}, new String[] {"submit", "submit", l10n().getString("SelectBoardsPage.FilterButton") });
 		
         // Clear margins after button row. TODO: Refactoring: Move to CSS
