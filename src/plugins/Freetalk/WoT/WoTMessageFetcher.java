@@ -245,8 +245,8 @@ public final class WoTMessageFetcher extends MessageFetcher {
 		
 		// We only call fetchMessages() if we know that the current message was marked as fetched in the database, otherwise the fetch thread could get stuck
 		// in a busy loop: "fetch(), onSuccess(), fetch(), onSuccess(), ..."
-		if(fetchMoreMessages)
-			fetchMessages();
+//		if(fetchMoreMessages)
+//			fetchMessages();
 	}
 	
 	@Override
@@ -268,7 +268,7 @@ public final class WoTMessageFetcher extends MessageFetcher {
 						
 						// We only call fetchMessages() if we know that the message for which the fetch failed was marked as failed, otherwise the fetch
 						// thread could get stuck in a busy loop: "fetch(), onFailure(), fetch(), onFailure() ..."
-						fetchMessages();
+//						fetchMessages();
 					} catch(NoSuchMessageListException ex) {
 						Logger.normal(this, "MessageList was deleted already, not marking message as fetch failed: " + state.getURI());
 					} catch (Exception ex) {
